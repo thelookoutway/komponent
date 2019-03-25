@@ -2,7 +2,9 @@
 
 module Komponent
   class ComponentPathResolver
-    def resolve(component_name)
+    @paths = Concurrent::Map.new
+
+    def resolve_without_caching(component_name)
       root_path = component_paths.find do |path|
         path_has_component?(path, component_name)
       end
@@ -17,6 +19,10 @@ module Komponent
       root_path.join(*component_name)
     end
 
+    def resolve(component_name)
+      paths[component_name] ||= resolve_without_caching(component_name)
+    end
+
     def component_paths
       komponent_configuration.component_paths.map do |path|
         Pathname.new(path)
@@ -24,6 +30,10 @@ module Komponent
     end
 
     protected
+
+    class << self
+      attr_accessor :paths
+    end
 
     def path_has_component?(path, component_name)
       file_name = path.join(*[
