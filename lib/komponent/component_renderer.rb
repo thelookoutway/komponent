@@ -8,6 +8,7 @@ module Komponent
     attr_reader :context
 
     def initialize(controller, view_flow = nil)
+      @controller = controller
       @context = controller.view_context.dup
       @view_renderer = @context.view_renderer = @context.view_renderer.dup
       @lookup_context = @view_renderer.lookup_context = @view_renderer.lookup_context.dup
@@ -33,6 +34,9 @@ module Komponent
     private
 
     def _render(component, locals = {}, options = {}, &block)
+      cache = @controller.instance_variable_get(:@cache)
+      template = cache&.fetch(component) { puts "cache miss #{component}"; false}
+
       parts = component.split("/")
       component_name = parts.join("_")
 
@@ -70,7 +74,13 @@ module Komponent
         define_singleton_method(:block_given_to_component) { block }
       end
 
-      @context.render("components/#{component}/#{parts.join('_')}", &block)
+      unless template
+        @controller.instance_variable_set(:@cache, @context.instance_variable_get(:@cache) || {})
+        template = @controller.lookup_context.find_template("components/#{component}/_#{parts.join('_')}")
+        @controller.instance_variable_get(:@cache)[component] = template
+      end
+
+      template.render(@context, locals, nil, &block)
     end
 
     def resolved_component_path(component)
